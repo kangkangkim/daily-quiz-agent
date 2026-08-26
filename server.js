@@ -1,0 +1,161 @@
+// 每日一题 · 小老师 —— Web 服务
+import express from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { todayStr } from './lib/date.js';
+import {
+  getQuestion,
+  saveQuestion,
+  publicView,
+  listQuestionDates,
+} from './lib/questions.js';
+import { getAttempts, userStats, leaderboard, recordAttempt, todaysAttemptsForUser } from './lib/attempts.js';
+import { runTeacher, parseSubmission, judgeDeterministic } from './agent/teacher.js';
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number(process.env.PORT || 3456);
+
+const app = express();
+app.use(express.json({ limit: '1mb' }));
+app.use(express.static(path.join(ROOT, 'public')));
+
+const NAME_RE = /^[\p{L}\p{N}_\-· ]{1,24}$/u;
+function cleanName(raw) {
+  const s = String(raw ?? '').trim();
+  return NAME_RE.test(s) ? s : null;
+}
+
+// ---------- 题目 ----------
+app.get('/api/today', (req, res) => {
+  const date = todayStr();
+  const q = getQuestion(date);
+  if (!q) {
+    return res.status(404).json({ error: '今天还没有题目', date });
+  }
+  res.json({
+    date,
+    question: publicView(q),
+    totalAttemptsToday: getAttempts(date).length,
+  });
+});
+
+app.get('/api/question/:date', (req, res) => {
+  const q = getQuestion(req.params.date);
+  if (!q) return res.status(404).json({ error: '该日期没有题目' });
+  res.json({ date: q.date, question: publicView(q) });
+});
+
+// ---------- 统计 ----------
+app.get('/api/stats', (req, res) => {
+  const user = cleanName(req.query.user);
+  if (!user) return res.status(400).json({ error: '缺少合法的 user 参数' });
+  res.json(userStats(user));
+});
+
+// ---------- 排行榜 ----------
+app.get('/api/leaderboard', (req, res) => {
+  const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+  const board = leaderboard({ limit });
+  const user = cleanName(req.query.user);
+  const me = user ? board.all.find((r) => r.user === user) ?? null : null;
+  delete board.all; // 全量名单仅服务端排序用，不外发
+  res.json({ ...board, me });
+});
+
+// ---------- 小老师聊天（SSE 流式） ----------
+app.post('/api/chat', async (req, res) => {
+  const user = cleanName(req.body?.user);
+  const message = String(req.body?.message ?? '').trim();
+  if (!user) return res.status(400).json({ error: '请先告诉我们你的名字' });
+  if (!message || message.length > 2000) {
+    return res.status(400).json({ error: '消息不能为空且不超过 2000 字' });
+  }
+
+  const date = todayStr();
+  const q = getQuestion(date);
+  if (!q) return res.status(404).json({ error: '今天还没有题目，无法开始答疑' });
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+  send('meta', { date, user });
+
+  // ---- 快路径：选择题提交 → 服务端确定性预判，verdict 立即下发，不等模型 ----
+  const answerText = parseSubmission(message);
+  let precomputed = null;
+  if (answerText !== null) {
+    const det = judgeDeterministic(q, answerText);
+    if (det) {
+      const attemptNo = getAttempts(date).filter((a) => a.user === user).length + 1;
+      recordAttempt(date, {
+        user,
+        answer: answerText.slice(0, 500),
+        correct: det.correct,
+        comment: det.correct ? '标准答案匹配' : '',
+      });
+      precomputed = { correct: det.correct, attemptNo };
+      send('verdict', {
+        correct: det.correct,
+        comment: det.correct ? '干脆利落！' : '',
+        overridden: false,
+        attemptNo,
+        attemptsToday: todaysAttemptsForUser(user, date).length,
+        totalToday: getAttempts(date).length,
+      });
+    }
+  }
+
+  try {
+    await runTeacher({
+      user,
+      date,
+      message,
+      history: req.body?.history,
+      precomputed,
+      onText: (t) => send('text', { t }),
+      onVerdict: (v) => send('verdict', v),
+    });
+    send('done', { ok: true });
+  } catch (err) {
+    console.error('[chat] agent error:', err?.message ?? err);
+    send('error', { message: '小老师暂时开小差了，请稍后再试' });
+  }
+  res.end();
+});
+
+// ---------- 管理接口（本地/内网工具，未做鉴权；公网部署请自行加锁） ----------
+app.get('/api/admin/questions', (req, res) => {
+  res.json(
+    listQuestionDates()
+      .reverse()
+      .map((date) => getQuestion(date))
+      .filter(Boolean),
+  );
+});
+
+app.get('/api/admin/question/:date', (req, res) => {
+  const q = getQuestion(req.params.date);
+  if (!q) return res.status(404).json({ error: '该日期没有题目' });
+  res.json(q);
+});
+
+app.post('/api/admin/question', (req, res) => {
+  try {
+    const saved = saveQuestion(req.body);
+    res.json({ ok: true, question: saved });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/health', (req, res) => res.json({ ok: true, date: todayStr() }));
+
+app.listen(PORT, () => {
+  console.log(`每日一题 · 小老师 已启动: http://localhost:${PORT}`);
+  console.log(`管理页（出题）: http://localhost:${PORT}/admin.html`);
+});

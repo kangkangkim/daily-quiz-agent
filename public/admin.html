@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>出题管理 · 每日一题</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .admin-wrap { max-width: 860px; margin: 0 auto; padding: 22px 20px 60px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #6b6558; }
+    .field input, .field textarea, .field select {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--line);
+      border-radius: 8px; font-size: 14px; font-family: inherit; background: #faf8f4;
+    }
+    .field textarea { resize: vertical; }
+    .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--brand); }
+    .list { margin-top: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+    .save-msg { margin-top: 10px; font-size: 14px; }
+    .save-msg.ok { color: var(--ok); }
+    .save-msg.bad { color: var(--bad); }
+    .back-link { color: var(--brand); text-decoration: none; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🗂️ 出题管理 <span class="brand-sub">· 每日一题</span></div>
+    <a class="back-link" href="/">← 回到答题页</a>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="card">
+      <h3 style="margin-top:0" id="form-title">添加 / 更新题目</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label>日期（YYYY-MM-DD）</label>
+          <input id="f-date" placeholder="2026-08-26" />
+        </div>
+        <div class="field">
+          <label>学科/主题</label>
+          <input id="f-subject" placeholder="例如：Prompt Engineering" />
+        </div>
+        <div class="field full">
+          <label>题型</label>
+          <select id="f-type">
+            <option value="single-choice">单选题</option>
+            <option value="multi-choice">多选题</option>
+            <option value="free">主观题（语义判定）</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>题干</label>
+          <textarea id="f-question" rows="4" placeholder="题目内容…"></textarea>
+        </div>
+        <div class="field full options-only">
+          <label>选项（选择题填写，留空的选项不保存）</label>
+          <div style="display:grid;gap:8px">
+            <input id="f-A" placeholder="A. …" />
+            <input id="f-B" placeholder="B. …" />
+            <input id="f-C" placeholder="C. …" />
+            <input id="f-D" placeholder="D. …" />
+          </div>
+        </div>
+        <div class="field">
+          <label>答案（选择题填字母，多选用如 AB）</label>
+          <input id="f-answer" placeholder="B 或 AB 或参考答案文本" />
+        </div>
+        <div class="field">
+          <label>答案一句话摘要（可选）</label>
+          <input id="f-answerText" placeholder="例如：C —— temperature 重缩放 logits" />
+        </div>
+        <div class="field full">
+          <label>考察要点 keyPoints（每行一条，判主观题 & 讲解时使用）</label>
+          <textarea id="f-keyPoints" rows="4" placeholder="要点1&#10;要点2"></textarea>
+        </div>
+        <div class="field full">
+          <label>解析（答对后 / 放弃后展示的完整讲解）</label>
+          <textarea id="f-explanation" rows="5" placeholder="给小老师用的完整解析…"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px; align-items:center">
+        <button id="f-save" class="btn primary">保存题目</button>
+        <button id="f-clear" class="btn" style="background:#eee;color:#555">清空</button>
+        <span class="save-msg" id="f-msg"></span>
+      </div>
+    </div>
+
+    <div class="card list">
+      <h3 style="margin-top:0">已有题目</h3>
+      <table>
+        <thead><tr><th>日期</th><th>主题</th><th>题型</th><th>题干</th><th></th></tr></thead>
+        <tbody id="q-list"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

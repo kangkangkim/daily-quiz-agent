@@ -1,0 +1,19 @@
+{
+  "name": "daily-quiz-agent",
+  "version": "1.0.0",
+  "description": "每日一题 · 小老师 —— 基于 Claude Agent SDK 的每日做题/判题/答疑 Web 应用",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "add-question": "node scripts/add-question.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.7",
+    "express": "^4.21.2",
+    "zod": "^3.24.2"
+  }
+}

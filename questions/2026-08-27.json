@@ -1,0 +1,21 @@
+{
+  "date": "2026-08-27",
+  "subject": "大模型基础 · 推理系统",
+  "type": "multi-choice",
+  "question": "关于推理系统的 KV Cache，下列说法正确的有哪些？",
+  "options": {
+    "A": "KV Cache 是典型的「以显存换速度」：缓存历史 token 各层的 Key/Value，让每个解码步只需计算新增 token 的 K/V，避免对整个前缀反复做前向计算",
+    "B": "KV Cache 的占用只和输入 prompt 长度、batch 大小、层数、KV 头维度有关，和已生成的输出长度无关",
+    "C": "Multi-Query / Grouped-Query Attention（MQA/GQA）通过让多个 Q 头共享或分组使用 K/V 头，显著缩小 KV Cache 体积，是长上下文推理的关键优化之一",
+    "D": "Prefix Caching（前缀缓存/上下文缓存）加速的原理是：相同前缀（如长系统提示）的 K/V 可以跨请求复用，无需重算"
+  },
+  "answer": "ACD",
+  "answerText": "ACD —— B 错在输出 token 同样会进缓存",
+  "keyPoints": [
+    "KV Cache 本质：用显存存历史 K/V，换掉每步对前缀的重复前向计算",
+    "自回归解码生成的每个输出 token 也会追加进 KV Cache，所以 B 的「与输出长度无关」是错的",
+    "KV Cache 占用 ≈ 2 × 层数 × KV头数 × 头维度 × 序列长度 × batch × 精度字节",
+    "MQA/GQA 从「KV 头数量」这个维度砍占用；Prefix Caching 从「跨请求复用」这个维度省计算"
+  ],
+  "explanation": "KV Cache 是自回归推理的命门。没有它，每生成一个 token 都要对整个前缀重跑一遍前向，代价是平方级的；有了它，每步只算新增 token 的 K/V，再对缓存做一次线性注意力（A 对）。它的代价是显存：占用随「序列长度」（注意是 prompt + 已生成输出之和，B 错在此）、层数、KV 头数与维度、batch、精度线性增长。长上下文时代的三大优化各砍一刀：MQA/GQA 减少 KV 头数量（C 对）、量化（如 KV cache INT8/FP8）压缩每个元素、Prefix Caching 让相同前缀跨请求复用 K/V（D 对）——这也是为什么超长系统提示 + 多轮对话的场景，前缀缓存能省大量首 token 延迟。"
+}

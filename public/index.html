@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>每日一题 · 小老师</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="stamp" aria-hidden="true">题</span>
+      <span class="brand-text">每日一题<em class="brand-sub">小老师</em></span>
+    </div>
+    <div class="topbar-right">
+      <span class="date-chip" id="today-chip"></span>
+      <span class="who" id="who">
+        <span id="who-name"></span>
+        <button class="link-btn" id="rename-btn" title="换个名字">✏️</button>
+      </span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：题目 + 统计 + 排行榜 -->
+    <section class="left">
+      <div id="name-modal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card">
+          <h3>先告诉我你的名字</h3>
+          <p class="muted">名字会出现在排行榜上</p>
+          <input id="name-input" maxlength="24" placeholder="例如：小明" />
+          <button id="name-save" class="btn primary">开始答题</button>
+        </div>
+      </div>
+
+      <div class="card question-card" id="question-card">
+        <div id="question-loading" class="muted">正在翻开今天的题…</div>
+        <div id="question-missing" class="hidden">
+          <p>😕 今天还没有题目。</p>
+          <p class="muted">出题的同学请去 <a href="/admin.html" target="_blank">管理页</a> 添加今天的题目。</p>
+        </div>
+        <div id="question-body" class="hidden">
+          <div class="q-meta">
+            <span class="tag subject" id="q-subject"></span>
+            <span class="tag" id="q-type"></span>
+            <span class="muted q-date" id="q-date"></span>
+          </div>
+          <h1 class="q-text" id="q-text"></h1>
+          <div id="q-options" class="options"></div>
+          <textarea id="q-free-input" class="free-input hidden" rows="4"
+            placeholder="在这里写下你的答案，尽量说清理由/要点…"></textarea>
+          <div class="submit-row">
+            <button id="submit-btn" class="btn primary big" disabled>提交答案</button>
+            <span class="muted submit-hint" id="submit-hint">答错可以再试，小老师会一步步提示</span>
+          </div>
+          <div id="verdict" class="verdict hidden" role="status"></div>
+        </div>
+      </div>
+
+      <div class="stats-row" id="stats-card">
+        <div class="stat-tile">
+          <div class="stat-value" id="st-today">–</div>
+          <div class="stat-label">今日作答</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" id="st-correct">–</div>
+          <div class="stat-label">累计答对</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" id="st-streak">–</div>
+          <div class="stat-label">连续答对 🔥</div>
+        </div>
+      </div>
+
+      <div class="card board-card">
+        <div class="board-head">
+          <div class="board-title">🏆 排行榜</div>
+          <div class="muted" id="board-sub">按累计答对排序</div>
+        </div>
+        <div id="lb-list" class="lb-list">
+          <div class="muted lb-empty">还没有人上榜，今天从你开始</div>
+        </div>
+        <div id="lb-me" class="lb-me hidden"></div>
+      </div>
+    </section>
+
+    <!-- 右：小老师答疑 -->
+    <section class="right">
+      <div class="card chat-card">
+        <div class="chat-head">
+          <span class="chat-avatar" aria-hidden="true">🧑‍🏫</span>
+          <div class="chat-head-text">
+            <div class="chat-title">小老师</div>
+            <div class="muted">判对错 · 讲题 · 答疑</div>
+          </div>
+        </div>
+        <div class="chat-log" id="chat-log">
+          <div class="msg teacher first-hint">
+            你好！先做左边的题，答完我来讲解。卡住了也可以直接问我，但我不会提前剧透答案哦 😉
+          </div>
+        </div>
+        <div class="chat-input">
+          <input id="chat-text" placeholder="向小老师提问，例如：这道题该从哪里入手？" />
+          <button id="chat-send" class="btn primary" aria-label="发送">发送</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">每日一题 · 每天 0 点（Asia/Shanghai）更新 · Powered by Claude Agent SDK</footer>
+  <script src="/app.js"></script>
+</body>
+</html>

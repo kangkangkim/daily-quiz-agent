@@ -1,0 +1,21 @@
+{
+  "date": "2026-08-26",
+  "subject": "大模型基础 · 解码与采样",
+  "type": "single-choice",
+  "question": "关于 LLM 解码采样参数，下列说法正确的是？",
+  "options": {
+    "A": "temperature=0 时输出完全确定，同一 prompt 多次调用结果必然逐 token 一致",
+    "B": "temperature 越高，词表分布越「尖锐」，模型越倾向选最高概率的 token",
+    "C": "temperature 的作用是把 logits 除以 T 再做 softmax：T<1 使分布更尖锐、输出更保守，T>1 使分布更平坦、输出更随机；它本身并不裁剪任何候选 token",
+    "D": "temperature 和 top-p 是同一件事的两种写法，设置其一即可，效果等价"
+  },
+  "answer": "C",
+  "answerText": "C —— temperature 只重缩放 logits，不裁剪候选",
+  "keyPoints": [
+    "temperature 在 softmax 之前对 logits 做 logits/T 的重缩放：T<1 尖锐、T>1 平坦",
+    "T→0 逼近 argmax（贪心），但工程上浮点并行归约、batch 组合、MoE 路由等仍可能带来偶发非确定性，「必然一致」过于绝对",
+    "top-p（nucleus sampling）是按累计概率截断候选集合，与 temperature 正交、可叠加",
+    "「高温度=更随机、低温度=更保守」方向别记反"
+  ],
+  "explanation": "temperature 是最常被误解的参数。它只做一件事：softmax 之前把 logits 除以 T。T<1 拉大 logit 差距 → 分布尖锐 → 输出保守；T>1 压平差距 → 分布平坦 → 输出多样；它从不删除任何候选 token（D 错：裁剪候选的是 top-p/top-k）。A 是经典陷阱：T=0 理论上等于贪心解码，但生产环境里 GPU 并行归约的浮点顺序、动态 batch、MoE 专家路由都可能造成微小分叉，追求严格复现要靠固定 seed + 确定性实现，而不是只把 temperature 归零。B 则把方向说反了。"
+}
