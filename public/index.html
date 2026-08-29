@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
   <title>每日一题 · 小老师</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
@@ -21,8 +22,30 @@
     </div>
   </header>
 
+  <!-- ===== Hero：期号 + 实时数据带 ===== -->
+  <div class="hero" role="banner">
+    <div class="hero-inner">
+      <div class="hero-left">
+        <div class="hero-issue">
+          <span class="issue-pre">第</span>
+          <span class="issue-no" id="issue-no">–</span>
+          <span class="issue-post">期</span>
+        </div>
+        <div class="hero-date" id="hero-date">正在翻开今天的题…</div>
+      </div>
+      <div class="hero-live">
+        <div class="live-pill" id="live-pill"><span class="live-dot"></span><span id="live-label">实时榜</span></div>
+        <div class="hero-nums">
+          <div class="hn"><b id="hn-part">–</b><span>今日作答</span></div>
+          <div class="hn-sep" aria-hidden="true"></div>
+          <div class="hn"><b id="hn-ok">–</b><span>今日答对</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main class="layout">
-    <!-- 左：题目 + 统计 + 排行榜 -->
+    <!-- 左：题目 + 我的统计 + 排行榜 -->
     <section class="left">
       <div id="name-modal" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-card">
@@ -75,8 +98,9 @@
       <div class="card board-card">
         <div class="board-head">
           <div class="board-title">🏆 排行榜</div>
-          <div class="muted" id="board-sub">按累计答对排序</div>
+          <div class="board-sub" id="board-sub">按累计答对排序</div>
         </div>
+        <div id="podium" class="podium"></div>
         <div id="lb-list" class="lb-list">
           <div class="muted lb-empty">还没有人上榜，今天从你开始</div>
         </div>

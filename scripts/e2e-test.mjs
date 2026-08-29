@@ -94,11 +94,22 @@ if (isChoice) {
   }
 }
 
+if (!isChoice) {
+  // ---- T2f: 主观题提交一次，应产生判定并计入作答 ----
+  const ev = await chat(user, `【提交答案】${q.answer.slice(0, 150)}`);
+  const verdict = ev.find((e) => e.event === 'verdict')?.data;
+  assert(
+    verdict && typeof verdict.correct === 'boolean',
+    'T2f 主观题提交 → 产生判定',
+    JSON.stringify(verdict),
+  );
+}
+
 // ---- T5: 统计落盘 ----
 {
   const res = await fetch(`${BASE}/api/stats?user=${encodeURIComponent(user)}`);
   const s = await res.json();
-  const expected = isChoice ? 2 : 0;
+  const expected = isChoice ? 2 : 1;
   assert(
     s.days.find((d) => d.date === today)?.attempts === expected,
     `T5 统计：今天 ${expected} 次作答`,

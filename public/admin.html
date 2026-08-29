@@ -9,10 +9,11 @@
     .admin-wrap { max-width: 860px; margin: 0 auto; padding: 22px 20px 60px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .form-grid .full { grid-column: 1 / -1; }
-    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: #6b6558; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--ink-2); }
     .field input, .field textarea, .field select {
       width: 100%; padding: 9px 12px; border: 1.5px solid var(--line);
-      border-radius: 8px; font-size: 14px; font-family: inherit; background: #faf8f4;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+      background: var(--card-2); color: var(--ink);
     }
     .field textarea { resize: vertical; }
     .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--brand); }

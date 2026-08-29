@@ -1,4 +1,4 @@
-// 每日一题 · 小老师 —— 前端逻辑
+// 每日一题 · 小老师 —— 前端逻辑（v2：实时榜 + 领奖台）
 const $ = (id) => document.getElementById(id);
 
 const state = {
@@ -11,6 +11,8 @@ const state = {
   history: [], // [{role, content}]
 };
 
+const prevRanks = new Map(); // user -> 上次名次，用于“名次变化”高亮
+
 const TYPE_LABEL = {
   'single-choice': '单选题',
   'multi-choice': '多选题',
@@ -18,12 +20,17 @@ const TYPE_LABEL = {
 };
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 
-// ---------- 顶栏日期 ----------
-function renderTodayChip() {
+// ---------- 顶栏日期 + Hero ----------
+function renderTodayChip(data) {
   if (!state.date) return;
   const d = new Date(`${state.date}T12:00:00+08:00`);
-  $('today-chip').textContent =
+  const dateText =
     `${Number(state.date.slice(5, 7))} 月 ${Number(state.date.slice(8, 10))} 日 · 星期${WEEKDAY[d.getUTCDay()]}`;
+  $('today-chip').textContent = dateText;
+  $('hero-date').textContent = dateText + (data?.issueNo ? ` · 每天 0 点更新` : '');
+  if (data?.issueNo != null) $('issue-no').textContent = data.issueNo;
+  if (data?.participantsToday != null) $('hn-part').textContent = data.participantsToday;
+  if (data?.correctToday != null) $('hn-ok').textContent = data.correctToday;
 }
 
 // ---------- 名字 ----------
@@ -62,11 +69,12 @@ async function loadToday() {
     if (!res.ok) {
       $('question-loading').classList.add('hidden');
       $('question-missing').classList.remove('hidden');
+      $('hero-date').textContent = '今天还没有题目';
       return;
     }
     state.date = data.date;
     state.question = data.question;
-    renderTodayChip();
+    renderTodayChip(data);
     renderQuestion();
     restoreChat();
   } catch {
@@ -154,6 +162,8 @@ function showVerdict(v) {
     `<div class="v-sub">${escapeHtml(v.comment || '')}</div>` +
     `<div class="v-note">今天第 ${v.attemptNo} 次作答 · ${v.correct ? '看看小老师的讲解 →' : '可以继续提交，也可以问小老师要提示'}</div>`;
 
+  if (v.correct) celebrate();
+
   // 选择题：锁定并标注用户所选
   const q = state.question;
   if (q && q.options) {
@@ -169,6 +179,23 @@ function showVerdict(v) {
   }
   loadStats();
   loadLeaderboard();
+}
+
+// ---------- 撒花 ----------
+function celebrate() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const colors = ['#e2603a', '#e6b354', '#5cb987', '#aab3c2', '#f1ede2'];
+  for (let i = 0; i < 30; i++) {
+    const p = document.createElement('span');
+    p.className = 'confetti-piece' + (Math.random() < 0.3 ? ' round' : '');
+    p.style.left = `${4 + Math.random() * 92}vw`;
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = `${1.4 + Math.random() * 1.1}s`;
+    p.style.animationDelay = `${Math.random() * 0.3}s`;
+    p.style.transform = `rotate(${Math.random() * 360}deg)`;
+    document.body.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
 }
 
 // ---------- 聊天 ----------
@@ -291,7 +318,7 @@ $('chat-text').addEventListener('keydown', (e) => {
   }
 });
 
-// ---------- 统计 ----------
+// ---------- 我的统计 ----------
 async function loadStats() {
   if (!state.user) return;
   try {
@@ -318,26 +345,54 @@ async function loadLeaderboard() {
   } catch { /* 静默 */ }
 }
 
+function renderHeroNums(board) {
+  if (board.participantsToday != null) $('hn-part').textContent = board.participantsToday;
+  if (board.correctToday != null) $('hn-ok').textContent = board.correctToday;
+}
+
+function renderPodium(leaders) {
+  const podium = $('podium');
+  podium.innerHTML = '';
+  if (!leaders.length) return;
+
+  const medal = { 1: '🥇', 2: '🥈', 3: '🥉' };
+  const top = leaders.slice(0, 3);
+  const order = [top[1], top[0], top[2]].filter(Boolean); // 视觉顺序：2 - 1 - 3
+  for (const row of order) {
+    const div = document.createElement('div');
+    div.className = `pd p${row.rank}${state.user && row.user === state.user ? ' me' : ''}`;
+    const initial = [...row.user][0] ?? '·';
+    div.innerHTML =
+      `<div class="pd-medal">${medal[row.rank]}</div>` +
+      `<div class="pd-avatar">${escapeHtml(initial)}</div>` +
+      `<div class="pd-name">${escapeHtml(row.user)}</div>` +
+      `<div class="pd-days">答对 <b>${row.correctDays}</b> 天 · 🔥 <b>${row.streak}</b></div>` +
+      `<div class="pd-bar"></div>`;
+    podium.appendChild(div);
+  }
+}
+
 function renderLeaderboard(board) {
+  renderHeroNums(board);
+  renderPodium(board.leaders);
+
   const list = $('lb-list');
   list.innerHTML = '';
 
+  const rest = board.leaders.slice(3);
   if (!board.leaders.length) {
     list.innerHTML = '<div class="muted lb-empty">还没有人上榜，今天从你开始</div>';
     $('lb-me').classList.add('hidden');
     return;
   }
 
-  const medal = { 1: '🥇', 2: '🥈', 3: '🥉' };
-  for (const row of board.leaders) {
+  for (const row of rest) {
     const isMe = state.user && row.user === state.user;
     const div = document.createElement('div');
-    div.className = `lb-row${isMe ? ' me' : ''}`;
-
-    const rankCls = row.rank <= 3 ? ` r${row.rank}` : '';
-    const rankHtml = medal[row.rank]
-      ? `<span title="第 ${row.rank} 名">${medal[row.rank]}</span>`
-      : row.rank;
+    // 名次变化（新上榜或排名变动）→ 闪烁提示
+    const changed = prevRanks.has(row.user) && prevRanks.get(row.user) !== row.rank;
+    const fresh = !prevRanks.has(row.user) && prevRanks.size > 0;
+    div.className = `lb-row${isMe ? ' me' : ''}${changed || fresh ? ' flash' : ''}`;
 
     const todayPill = row.today.correct
       ? '<span class="lb-today ok">今日 ✅</span>'
@@ -346,7 +401,7 @@ function renderLeaderboard(board) {
         : '';
 
     div.innerHTML =
-      `<div class="lb-rank${rankCls}">${rankHtml}</div>` +
+      `<div class="lb-rank">${row.rank}</div>` +
       `<div class="lb-name">${escapeHtml(row.user)}${isMe ? '<span class="muted">（我）</span>' : ''}</div>` +
       `<div class="lb-stats">` +
       `<span>答对 <b>${row.correctDays}</b> 天</span>` +
@@ -355,6 +410,10 @@ function renderLeaderboard(board) {
       `</div>`;
     list.appendChild(div);
   }
+  if (!rest.length) list.classList.add('hidden');
+  else list.classList.remove('hidden');
+
+  for (const row of board.leaders) prevRanks.set(row.user, row.rank);
 
   // “我的名次”（不在前 10 时显示）
   const me = $('lb-me');
@@ -366,6 +425,32 @@ function renderLeaderboard(board) {
   }
 }
 
+// ---------- 实时榜：SSE 订阅 + 兜底轮询 ----------
+function setLivePill(on) {
+  $('live-pill').classList.toggle('off', !on);
+  $('live-label').textContent = on ? '实时榜' : '已断开 · 轮询中';
+}
+
+function connectBoardStream() {
+  if (!('EventSource' in window)) {
+    setLivePill(false);
+    setInterval(loadLeaderboard, 30_000);
+    return;
+  }
+  const es = new EventSource('/api/leaderboard/stream');
+  es.addEventListener('open', () => setLivePill(true));
+  es.addEventListener('board', (e) => {
+    try {
+      renderLeaderboard(JSON.parse(e.data));
+    } catch { /* 坏帧忽略 */ }
+  });
+  es.addEventListener('error', () => {
+    // 浏览器会自动重连；期间用轮询兜底
+    setLivePill(false);
+    loadLeaderboard();
+  });
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
@@ -373,9 +458,18 @@ function escapeHtml(s) {
 }
 
 // ---------- 启动 ----------
+// 支持 #name=xx 深链预设名字（便于测试/分享），随后清掉 hash
+{
+  const hashName = new URLSearchParams(location.hash.replace(/^#/, '')).get('name');
+  if (hashName) {
+    state.user = hashName.trim().slice(0, 24);
+    localStorage.setItem('quiz-user', state.user);
+    history.replaceState(null, '', location.pathname);
+  }
+}
 ensureName();
 loadToday();
 loadStats();
 loadLeaderboard();
-// 排行榜轻量轮询：别人答题后也能看到变化
-setInterval(loadLeaderboard, 60_000);
+connectBoardStream();
+setInterval(loadLeaderboard, 120_000); // 低频兜底：SSE 静默丢失时也能追上

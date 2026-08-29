@@ -11,6 +11,7 @@ import {
 } from './lib/questions.js';
 import { getAttempts, userStats, leaderboard, recordAttempt, todaysAttemptsForUser } from './lib/attempts.js';
 import { runTeacher, parseSubmission, judgeDeterministic } from './agent/teacher.js';
+import { bus } from './lib/bus.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3456);
@@ -25,6 +26,59 @@ function cleanName(raw) {
   return NAME_RE.test(s) ? s : null;
 }
 
+// ---------- 实时榜单广播（SSE） ----------
+const boardClients = new Set(); // 在线订阅者
+
+function todaySnapshot() {
+  const date = todayStr();
+  const attempts = getAttempts(date);
+  const users = new Map();
+  for (const a of attempts) {
+    if (!users.has(a.user)) users.set(a.user, false);
+    if (a.correct) users.set(a.user, true);
+  }
+  return {
+    participantsToday: users.size,
+    correctToday: [...users.values()].filter(Boolean).length,
+  };
+}
+
+function boardPayload() {
+  return { ...leaderboard({ limit: 10 }), ...todaySnapshot() };
+}
+
+let broadcastTimer = null;
+function scheduleBroadcast() {
+  // 短时间去抖：一次作答（预判 + Agent 记录）只广播一次
+  if (broadcastTimer) return;
+  broadcastTimer = setTimeout(() => {
+    broadcastTimer = null;
+    const payload = JSON.stringify(boardPayload());
+    for (const res of boardClients) {
+      try {
+        res.write(`event: board\ndata: ${payload}\n\n`);
+      } catch { /* 断开的连接由 close 事件清理 */ }
+    }
+  }, 400);
+}
+bus.on('attempt', scheduleBroadcast);
+
+app.get('/api/leaderboard/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(`event: board\ndata: ${JSON.stringify(boardPayload())}\n\n`);
+  boardClients.add(res);
+  const hb = setInterval(() => res.write(': hb\n\n'), 25_000);
+  req.on('close', () => {
+    clearInterval(hb);
+    boardClients.delete(res);
+  });
+});
+
 // ---------- 题目 ----------
 app.get('/api/today', (req, res) => {
   const date = todayStr();
@@ -32,10 +86,14 @@ app.get('/api/today', (req, res) => {
   if (!q) {
     return res.status(404).json({ error: '今天还没有题目', date });
   }
+  // 期号 = 题库中 ≤ 今天的题目数
+  const issueNo = listQuestionDates().filter((d) => d <= date).length;
   res.json({
     date,
+    issueNo,
     question: publicView(q),
     totalAttemptsToday: getAttempts(date).length,
+    ...todaySnapshot(),
   });
 });
 
@@ -59,7 +117,7 @@ app.get('/api/leaderboard', (req, res) => {
   const user = cleanName(req.query.user);
   const me = user ? board.all.find((r) => r.user === user) ?? null : null;
   delete board.all; // 全量名单仅服务端排序用，不外发
-  res.json({ ...board, me });
+  res.json({ ...board, ...todaySnapshot(), me });
 });
 
 // ---------- 小老师聊天（SSE 流式） ----------
@@ -107,6 +165,7 @@ app.post('/api/chat', async (req, res) => {
         attemptsToday: todaysAttemptsForUser(user, date).length,
         totalToday: getAttempts(date).length,
       });
+      bus.emit('attempt');
     }
   }
 
@@ -118,7 +177,10 @@ app.post('/api/chat', async (req, res) => {
       history: req.body?.history,
       precomputed,
       onText: (t) => send('text', { t }),
-      onVerdict: (v) => send('verdict', v),
+      onVerdict: (v) => {
+        send('verdict', v);
+        bus.emit('attempt');
+      },
     });
     send('done', { ok: true });
   } catch (err) {
