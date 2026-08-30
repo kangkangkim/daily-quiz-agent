@@ -305,6 +305,10 @@ async function ask(message) {
   $('chat-send').disabled = true;
 
   addMsg('user', message);
+  // 提交答案 → 视线带到康康答疑区（判定在正上方，一起进视野）
+  if (message.startsWith('【提交答案】')) {
+    document.querySelector('.chat-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
   const typing = addTyping();
   let live = null;
 

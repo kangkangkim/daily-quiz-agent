@@ -64,7 +64,7 @@
       </div>
     </aside>
 
-    <!-- 中：题目 + 我的统计 + 知识图谱 -->
+    <!-- 中：题目 + 康康答疑 + 我的统计 + 知识图谱 -->
     <section class="col-main">
       <div id="name-modal" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-card">
@@ -96,6 +96,26 @@
             <span class="muted submit-hint" id="submit-hint">答错可以再试，康康会一步步提示</span>
           </div>
           <div id="verdict" class="verdict hidden" role="status"></div>
+        </div>
+      </div>
+
+      <!-- 康康答疑紧跟题目：答完看讲解的动线一气呵成 -->
+      <div class="card chat-card">
+        <div class="chat-head">
+          <span class="chat-avatar" aria-hidden="true">🦘</span>
+          <div class="chat-head-text">
+            <div class="chat-title">康康小老师</div>
+            <div class="muted">判对错 · 讲题 · 答疑</div>
+          </div>
+        </div>
+        <div class="chat-log" id="chat-log">
+          <div class="msg teacher first-hint">
+            你好呀，我是康康！先做上面的题，答完我来讲解。卡住了也可以直接问我，但我不会提前剧透答案哦 😉
+          </div>
+        </div>
+        <div class="chat-input">
+          <input id="chat-text" placeholder="向康康提问，例如：这道题该从哪里入手？" />
+          <button id="chat-send" class="btn primary" aria-label="发送">发送</button>
         </div>
       </div>
 
@@ -133,7 +153,7 @@
 
     </section>
 
-    <!-- 右：排行榜（进门可见）+ 康康小老师答疑 -->
+    <!-- 右：排行榜（进门可见） -->
     <section class="col-side">
       <div class="card board-card">
         <div class="board-head">
@@ -145,25 +165,6 @@
           <div class="muted lb-empty">还没有人上榜，今天从你开始</div>
         </div>
         <div id="lb-me" class="lb-me hidden"></div>
-      </div>
-
-      <div class="card chat-card">
-        <div class="chat-head">
-          <span class="chat-avatar" aria-hidden="true">🦘</span>
-          <div class="chat-head-text">
-            <div class="chat-title">康康小老师</div>
-            <div class="muted">判对错 · 讲题 · 答疑</div>
-          </div>
-        </div>
-        <div class="chat-log" id="chat-log">
-          <div class="msg teacher first-hint">
-            你好呀，我是康康！先做左边的题，答完我来讲解。卡住了也可以直接问我，但我不会提前剧透答案哦 😉
-          </div>
-        </div>
-        <div class="chat-input">
-          <input id="chat-text" placeholder="向康康提问，例如：这道题该从哪里入手？" />
-          <button id="chat-send" class="btn primary" aria-label="发送">发送</button>
-        </div>
       </div>
     </section>
   </main>

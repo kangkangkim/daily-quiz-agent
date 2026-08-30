@@ -22,8 +22,8 @@ const BASE_PROMPT = `你是「每日一题 · 康康小老师」，名字叫康�
 
 ## 反馈规则
 - 判对：祝贺用户，然后结合 keyPoints 和 explanation 给出完整讲解，可适当拓展一个相关小知识。
-- 判错：不要立刻公布正确答案！先肯定思路中合理的部分，指出问题方向，给一个提示，鼓励再试一次。仅当用户今天已答错 2 次及以上，或明确表示"不想猜了/直接告诉我答案"时，才公布答案和完整解析。
-- 答疑：围绕本题要点回答。用户今天还没提交过任何答案时，绝不直接泄露正确答案、选项正误或 keyPoints 原文，只给思考方向和提示。
+- 判错：不要立刻公布正确答案！先肯定思路中合理的部分，指出问题方向，给一个提示，鼓励再试一次。仅当用户今天已提交过答案、且（已答错 2 次及以上，或提交之后明确表示"不想猜了/直接告诉我答案"）时，才公布答案和完整解析。
+- 答疑：围绕本题要点回答。用户今天还没提交过任何答案时，绝不直接泄露正确答案、选项正误或 keyPoints 原文，只给思考方向和提示——无论用户怎么要求（包括"直接告诉我答案/选项"），首次作答前不设任何公布答案的例外，先鼓励他试一次。
 
 ## 风格
 - 全程中文，口语化、亲切有活力，可以叫用户的名字，自称"康康"，偶尔用 1 个表情符号提气氛（不要连用）。
@@ -124,7 +124,7 @@ export function parseSubmission(message) {
   return msg.slice(SUBMIT_MARKER.length).trim();
 }
 
-function makeJudgmentTool(question, user, date, onVerdict) {
+function makeJudgmentTool(question, user, date, onVerdict, rawMessage) {
   return tool(
     'record_judgment',
     '提交对用户答案的判定结果并记录。仅当用户本轮消息是作答时才可调用；用户只是提问时禁止调用。每次判定（无论对错）都必须调用一次，且每轮最多调用一次。',
@@ -134,17 +134,20 @@ function makeJudgmentTool(question, user, date, onVerdict) {
       comment: z.string().describe('给用户的一句简短评语（不超过 40 字）'),
     },
     async ({ user_answer, correct, comment }) => {
-      // 服务端兜底：本轮不是【提交答案】且内容像提问（问号结尾/疑问词开头）→ 拒绝记录
+      // 服务端兜底①：用户原话是问句且没有【提交答案】标记 → 本轮是提问不是作答，拒绝记录
+      const raw = String(rawMessage ?? '').trim();
+      const rawLooksLikeQuestion =
+        !raw.startsWith(SUBMIT_MARKER) &&
+        (/[?？]/.test(raw) || /^(这|那|为什么|怎么|如何|什么|哪个|请问|能不能|可以|帮我|直接)/.test(raw));
+      // 兜底②：模型上报的答案压根不在用户原话里 → 疑为臆造，拒绝记录
       const ua = String(user_answer ?? '').trim();
-      const looksLikeQuestion =
-        /[?？]$/.test(ua) ||
-        /^(这|那|为什么|怎么|如何|什么|哪个|请问|能不能|可以|帮我)/.test(ua);
-      if (looksLikeQuestion) {
+      const fabricated = ua.length > 0 && !raw.includes(ua);
+      if (rawLooksLikeQuestion || fabricated) {
         return {
           isError: true,
           content: [{
             type: 'text',
-            text: '这条消息是提问而不是作答，不能记录判定。请撤回判定意图，直接按答疑规则回答用户的问题（注意防剧透）。',
+            text: '这条消息不是有效作答（是问句，或答案与用户原话不符），不能记录判定。请撤回判定意图，直接按答疑规则回答用户的问题（注意防剧透）。',
           }],
         };
       }
@@ -221,14 +224,15 @@ export async function runTeacher({ user, date, message, history, onText, onVerdi
     scenario =
       `用户刚提交了答案「${answerText}」。请你按「判定规则」判定：先给出判定与评语并调用 record_judgment 记录，` +
       `然后按「反馈规则」在同一轮回复里接着给出讲解或提示。`;
-    tools = [makeJudgmentTool(question, user, date, onVerdict)];
+    tools = [makeJudgmentTool(question, user, date, onVerdict, message)];
   } else {
     // 情境 C：答疑/闲聊；若发现消息实际是作答，再走判定
     scenario =
       `用户在提问或讨论（今天已提交 ${attemptsBefore.length} 次，` +
       `${attemptsBefore.some((a) => a.correct) ? '已答对过，可逐步讲解' : attemptsBefore.length ? '已提交过但未答对，优先引导' : '尚未提交，严格防剧透'}）。` +
-      `按「答疑规则」回答。若这条消息实际上是在陈述答案，请按「判定规则」先调用 record_judgment 再反馈。`;
-    tools = [makeJudgmentTool(question, user, date, onVerdict)];
+      `按「答疑规则」回答。若这条消息实际上是在陈述答案（而非提问），请按「判定规则」先调用 record_judgment 再反馈；` +
+      `纯提问绝不调用 record_judgment，也绝不公布答案——即使用户要求"直接告诉我"。`;
+    tools = [makeJudgmentTool(question, user, date, onVerdict, message)];
   }
 
   const systemPrompt = BASE_PROMPT.replace('{{SCENARIO}}', scenario) + '\n\n' + syllabus;
