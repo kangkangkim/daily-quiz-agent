@@ -130,6 +130,31 @@ app.get('/api/history', (_req, res) => {
   res.json({ items });
 });
 
+// ---------- 知识图谱（由题库动态生成：科目=中心节点，每道题=叶子节点） ----------
+app.get('/api/graph', (_req, res) => {
+  const today = todayStr();
+  const dates = listQuestionDates().sort();
+  const bySubject = new Map();
+  dates.forEach((d) => {
+    const q = getQuestion(d);
+    if (!q) return;
+    const full = q.subject ?? '未分类';
+    const hubKey = (full.split('·')[0] ?? '').trim() || full; // 「·」前是科目（中心节点）
+    if (!bySubject.has(hubKey)) bySubject.set(hubKey, []);
+    bySubject.get(hubKey).push({
+      date: d,
+      issueNo: dates.indexOf(d) + 1,
+      label: (full.split('·').pop() ?? '').trim() || full, // 「·」后是知识点（叶子节点）
+      type: q.type,
+      status: d < today ? 'past' : d === today ? 'today' : 'future',
+    });
+  });
+  const subjects = [...bySubject.entries()]
+    .map(([subject, items]) => ({ subject, label: (subject.split('·')[0] ?? '').trim() || subject, items }))
+    .sort((a, b) => (a.items[0]?.date < b.items[0]?.date ? -1 : 1)); // 学习路径顺序
+  res.json({ today, subjects });
+});
+
 // ---------- 统计 ----------
 app.get('/api/stats', (req, res) => {
   const user = cleanName(req.query.user);

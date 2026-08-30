@@ -124,4 +124,19 @@ if (!isChoice) {
   assert(b.me !== null, 'T6 排行榜能查到该用户', JSON.stringify(b.me));
 }
 
+// ---- T7: 知识图谱由题库动态生成 ----
+{
+  const res = await fetch(`${BASE}/api/graph`);
+  const g = await res.json();
+  const items = (g.subjects ?? []).flatMap((s) => s.items ?? []);
+  assert(
+    g.subjects?.length >= 1 &&
+      items.length >= 1 &&
+      items.every((it) => ['past', 'today', 'future'].includes(it.status) && it.issueNo >= 1) &&
+      items.some((it) => it.status === 'today'),
+    'T7 知识图谱接口：科目分组 + 状态 + 期号',
+    JSON.stringify(g.subjects?.map((s) => s.subject)),
+  );
+}
+
 console.log('\n==== 测试结束 ====');

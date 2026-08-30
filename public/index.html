@@ -101,6 +101,23 @@
         </div>
       </div>
 
+      <div class="card graph-card">
+        <div class="graph-head">
+          <span class="graph-title">🧠 知识图谱</span>
+          <span class="muted graph-sub">题库沿知识脉络动态生长</span>
+        </div>
+        <div class="graph-wrap">
+          <canvas id="graph-canvas"></canvas>
+          <div id="graph-tip" class="graph-tip hidden"></div>
+        </div>
+        <div class="graph-legend">
+          <span><i class="lg lg-past"></i>已解锁</span>
+          <span><i class="lg lg-today"></i>今日</span>
+          <span><i class="lg lg-future"></i>待解锁</span>
+          <span class="muted">💡 点击节点可跳转</span>
+        </div>
+      </div>
+
       <div class="card history-card">
         <button class="history-head" id="history-toggle" aria-expanded="false">
           <span class="history-title">📚 往期回顾</span>

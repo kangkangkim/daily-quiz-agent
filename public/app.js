@@ -534,6 +534,7 @@ async function loadHistory(force = false) {
     if (!res.ok) return;
     const { items } = await res.json();
     historyState.loaded = true;
+    historyState.items = items;
     $('history-count').textContent = items.length ? `共 ${items.length} 期` : '';
     renderHistory(items);
     // 深链 open=1 / open=YYYY-MM-DD：自动展开最近一期或指定日期（分享/测试用）
@@ -618,6 +619,323 @@ $('history-toggle').addEventListener('click', async () => {
   if (!open) loadHistory();
 });
 
+// ---------- 知识图谱：题库沿知识脉络动态生长 ----------
+const G = { canvas: null, ctx: null, w: 0, h: 0, dpr: 1, hubs: [], leaves: [], hover: null, raf: 0, t0: 0 };
+const HUB_COLORS = ['#f4502e', '#ffb020', '#0fa396', '#7b6cf0', '#ff8a3d'];
+const STATUS_COLOR = { past: '#0fa396', today: '#f4502e', future: '#b9b0a2' };
+const STATUS_TEXT = { past: '已解锁', today: '今日', future: '待解锁' };
+const graphRnd = (i) => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+function layoutGraph() {
+  const { w, h } = G;
+  const cx = w / 2;
+  const cy = h / 2 + 4;
+  const N = Math.max(G.hubs.length, 1);
+  const rx = Math.min(w * 0.3, 290);
+  const ry = Math.min(h * 0.3, 88);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  G.hubs.forEach((hub, i) => {
+    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / N;
+    hub.bx = clamp(cx + Math.cos(ang) * rx, 40, w - 40);
+    hub.by = clamp(cy + Math.sin(ang) * ry, 26, h - 34);
+  });
+  G.leaves.forEach((leaf) => {
+    const hub = leaf.hub;
+    const toward = Math.atan2(cy - hub.by, cx - hub.bx); // 朝画布中心展开
+    const n = Math.max(hub.leaves.length, 1);
+    const spread = Math.min(Math.PI * 1.5, 0.95 * n);
+    const ang =
+      toward + (n === 1 ? 0 : -spread / 2 + (spread * leaf.idx) / (n - 1));
+    const r = 46 + graphRnd(leaf.seed) * 16;
+    leaf.bx = clamp(hub.bx + Math.cos(ang) * r, 20, w - 20);
+    leaf.by = clamp(hub.by + Math.sin(ang) * r, 20, h - 20);
+  });
+}
+
+function buildGraphNodes(data) {
+  G.hubs = [];
+  G.leaves = [];
+  let seed = 0;
+  data.subjects.forEach((s, i) => {
+    const hub = {
+      kind: 'hub',
+      id: 'hub-' + i,
+      label: s.label,
+      color: HUB_COLORS[i % HUB_COLORS.length],
+      leaves: [],
+      phase: graphRnd(seed++) * Math.PI * 2,
+      amp: 2.5 + graphRnd(seed++) * 1.5,
+      speed: 0.5 + graphRnd(seed++) * 0.4,
+      r: 13,
+    };
+    G.hubs.push(hub);
+    s.items.forEach((it, k) => {
+      const leaf = {
+        kind: 'leaf',
+        id: 'q-' + it.date,
+        label: it.label,
+        subject: s.subject,
+        date: it.date,
+        issueNo: it.issueNo,
+        status: it.status,
+        hub,
+        idx: k,
+        of: s.items.length,
+        seed: seed + k * 7,
+        phase: graphRnd(seed++) * Math.PI * 2,
+        amp: 3 + graphRnd(seed++) * 3,
+        speed: 0.6 + graphRnd(seed++) * 0.5,
+        r: it.status === 'today' ? 7 : 6,
+        hash: graphRnd(seed++),
+      };
+      hub.leaves.push(leaf);
+      G.leaves.push(leaf);
+    });
+    seed += 3;
+  });
+}
+
+function drawGraph() {
+  const ctx = G.ctx;
+  if (!ctx) return;
+  const t = (performance.now() - G.t0) / 1000;
+  G.t = t;
+  const place = (n) => {
+    n.x = n.bx + Math.sin(t * n.speed + n.phase) * n.amp;
+    n.y = n.by + Math.cos(t * n.speed * 0.83 + n.phase * 1.7) * n.amp;
+  };
+  G.hubs.forEach(place);
+  G.leaves.forEach(place);
+
+  ctx.clearRect(0, 0, G.w, G.h);
+
+  // 学习路径（科目间虚线，dash 流动）
+  if (G.hubs.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(43,38,32,0.16)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([4, 7]);
+    ctx.lineDashOffset = -t * 14;
+    ctx.beginPath();
+    G.hubs.forEach((hb, i) => (i ? ctx.lineTo(hb.x, hb.y) : ctx.moveTo(hb.x, hb.y)));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 科目 → 题目 的边
+  G.leaves.forEach((leaf) => {
+    const hub = leaf.hub;
+    const isToday = leaf.status === 'today';
+    ctx.strokeStyle = isToday ? 'rgba(244,80,46,0.4)' : 'rgba(43,38,32,0.1)';
+    ctx.lineWidth = isToday ? 1.6 : 1;
+    ctx.beginPath();
+    ctx.moveTo(hub.x, hub.y);
+    ctx.lineTo(leaf.x, leaf.y);
+    ctx.stroke();
+  });
+
+  // 游走光点（已解锁/今日的边上才有）
+  G.leaves.forEach((leaf) => {
+    if (leaf.status === 'future') return;
+    const hub = leaf.hub;
+    const p = (t * 0.16 + leaf.hash) % 1;
+    for (let g = 0; g < 3; g++) {
+      const pp = p - g * 0.045;
+      if (pp < 0 || pp > 1) continue;
+      const x = hub.x + (leaf.x - hub.x) * pp;
+      const y = hub.y + (leaf.y - hub.y) * pp;
+      ctx.globalAlpha = (1 - g * 0.35) * 0.85;
+      ctx.fillStyle = leaf.status === 'today' ? '#ff8a3d' : '#ffb020';
+      ctx.beginPath();
+      ctx.arc(x, y, 2.4 - g * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  });
+
+  // 节点
+  ctx.font = '11px system-ui, -apple-system, "PingFang SC", sans-serif';
+  G.hubs.forEach((hub) => {
+    ctx.beginPath();
+    ctx.fillStyle = hub.color + '24';
+    ctx.arc(hub.x, hub.y, hub.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = hub.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.fillStyle = hub.color;
+    ctx.arc(hub.x, hub.y, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(43,38,32,0.85)';
+    ctx.font = '600 11px system-ui, -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(hub.label, hub.x, hub.y + hub.r + 14);
+  });
+
+  G.leaves.forEach((leaf) => {
+    const hovered = G.hover === leaf;
+    const r = leaf.r + (hovered ? 1.6 : 0);
+    if (leaf.status === 'today') {
+      const halo = r + 5 + Math.sin(t * 2.6) * 2.4;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(244,80,46,0.5)';
+      ctx.lineWidth = 1.4;
+      ctx.arc(leaf.x, leaf.y, halo, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.fillStyle = '#f4502e';
+      ctx.arc(leaf.x, leaf.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (leaf.status === 'past') {
+      ctx.beginPath();
+      ctx.fillStyle = '#0fa396';
+      ctx.arc(leaf.x, leaf.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.4;
+      ctx.moveTo(leaf.x - 2.6, leaf.y);
+      ctx.lineTo(leaf.x - 0.6, leaf.y + 2.2);
+      ctx.lineTo(leaf.x + 2.8, leaf.y - 2.4);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.strokeStyle = '#b9b0a2';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([3, 3]);
+      ctx.arc(leaf.x, leaf.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.font = (leaf.status === 'today' ? '700 ' : '') + '10.5px system-ui, -apple-system, "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle =
+      leaf.status === 'today' ? '#f4502e' : leaf.status === 'past' ? 'rgba(43,38,32,0.72)' : 'rgba(43,38,32,0.4)';
+    // 下半区的叶子标签画在节点上方，避免压到下方的中心节点
+    const labelY = leaf.y < G.h * 0.6 ? leaf.y + r + 12 : leaf.y - r - 7;
+    ctx.fillText(leaf.label, leaf.x, labelY);
+  });
+}
+
+function graphTick() {
+  drawGraph();
+  G.raf = requestAnimationFrame(graphTick);
+}
+
+function graphHit(mx, my) {
+  let best = null;
+  let bestD = 16;
+  [...G.leaves, ...G.hubs].forEach((n) => {
+    const d = Math.hypot(n.x - mx, n.y - my);
+    if (d < bestD) {
+      bestD = d;
+      best = n;
+    }
+  });
+  return best;
+}
+
+function openHistoryDate(date) {
+  const body = $('history-body');
+  if (body.classList.contains('hidden')) {
+    historyState.pendingOpen = 'date';
+    historyState.pendingDate = date;
+    $('history-toggle').click();
+    return;
+  }
+  if (!historyState.loaded) return;
+  historyState.open.add(date);
+  renderHistory(historyState.items);
+  body.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function loadGraph() {
+  const canvas = $('graph-canvas');
+  if (!canvas) return;
+  try {
+    const res = await fetch('/api/graph');
+    if (!res.ok) return;
+    const data = await res.json();
+    buildGraphNodes(data);
+    G.canvas = canvas;
+    G.ctx = canvas.getContext('2d');
+    G.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const resize = () => {
+      const wrap = canvas.parentElement;
+      const rect = wrap.getBoundingClientRect();
+      G.w = Math.max(300, rect.width);
+      G.h = Math.max(220, rect.height);
+      canvas.width = G.w * G.dpr;
+      canvas.height = G.h * G.dpr;
+      G.ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+      if (G.hubs.length) {
+        layoutGraph();
+        drawGraph();
+      } else {
+        G.ctx.font = '12px system-ui, sans-serif';
+        G.ctx.fillStyle = 'rgba(43,38,32,0.4)';
+        G.ctx.textAlign = 'center';
+        G.ctx.fillText('图谱将随题库一起生长 🌱', G.w / 2, G.h / 2);
+      }
+    };
+    resize();
+    if (!G.hubs.length) return;
+    new ResizeObserver(() => requestAnimationFrame(resize)).observe(canvas.parentElement);
+
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const n = graphHit(e.clientX - rect.left, e.clientY - rect.top);
+      G.hover = n;
+      canvas.style.cursor = n && n.kind === 'leaf' ? 'pointer' : 'default';
+      const tip = $('graph-tip');
+      if (!n) {
+        tip.classList.add('hidden');
+        return;
+      }
+      tip.innerHTML =
+        n.kind === 'hub'
+          ? `<b>${escapeHtml(n.label)}</b><div class="muted">${n.leaves.length} 个知识点</div>`
+          : `<b>第${n.issueNo}期</b> · ${n.date} · ${STATUS_TEXT[n.status]}<div class="muted">${escapeHtml(n.subject)}</div>`;
+      tip.classList.remove('hidden');
+      const wrap = canvas.parentElement.getBoundingClientRect();
+      const tw = tip.offsetWidth;
+      const x = Math.min(Math.max(e.clientX - wrap.left + 12, 6), wrap.width - tw - 6);
+      tip.style.left = x + 'px';
+      tip.style.top = Math.max(e.clientY - wrap.top - 44, 4) + 'px';
+    });
+    canvas.addEventListener('mouseleave', () => {
+      G.hover = null;
+      $('graph-tip').classList.add('hidden');
+    });
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const n = graphHit(e.clientX - rect.left, e.clientY - rect.top);
+      if (!n || n.kind !== 'leaf') return;
+      if (n.status === 'past') openHistoryDate(n.date);
+      else if (n.status === 'today') $('question-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+
+    G.t0 = performance.now();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      drawGraph(); // 静态一帧
+    } else {
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelAnimationFrame(G.raf);
+        else if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          cancelAnimationFrame(G.raf);
+          G.raf = requestAnimationFrame(graphTick);
+        }
+      });
+      G.raf = requestAnimationFrame(graphTick);
+    }
+  } catch { /* 静默 */ }
+}
+
 // ---------- 启动 ----------
 // 支持 #name=xx / #history=1 深链（便于测试/分享），随后清掉 hash
 {
@@ -639,6 +957,7 @@ $('history-toggle').addEventListener('click', async () => {
 ensureName();
 loadToday();
 loadStats();
+loadGraph();
 loadLeaderboard();
 connectBoardStream();
 setInterval(loadLeaderboard, 120_000); // 低频兜底：SSE 静默丢失时也能追上
