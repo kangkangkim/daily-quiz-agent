@@ -524,8 +524,8 @@ function escapeHtml(s) {
   );
 }
 
-// ---------- 往期回顾（历史题目 + 答案 + 解析；今日题不进历史，防剧透） ----------
-const historyState = { loaded: false, open: new Set(), pendingOpen: false, pendingDate: null };
+// ---------- 往期回顾（左侧边栏列表 + 详情弹层；今日题不进历史，防剧透） ----------
+const historyState = { loaded: false, items: [], active: null, pendingOpen: false, pendingDate: null };
 
 async function loadHistory(force = false) {
   if (historyState.loaded && !force) return;
@@ -536,8 +536,8 @@ async function loadHistory(force = false) {
     historyState.loaded = true;
     historyState.items = items;
     $('history-count').textContent = items.length ? `共 ${items.length} 期` : '';
-    renderHistory(items);
-    // 深链 open=1 / open=YYYY-MM-DD：自动展开最近一期或指定日期（分享/测试用）
+    renderHistoryList();
+    // 深链 open=1 / open=YYYY-MM-DD：自动打开最近一期或指定日期（分享/测试用）
     const target =
       historyState.pendingOpen === 'date'
         ? historyState.pendingDate
@@ -546,77 +546,79 @@ async function loadHistory(force = false) {
           : null;
     historyState.pendingOpen = false;
     historyState.pendingDate = null;
-    if (target && items.some((i) => i.date === target)) {
-      historyState.open.add(target);
-      renderHistory(items);
-    }
+    if (target && items.some((i) => i.date === target)) openHistoryModal(target);
   } catch { /* 静默 */ }
 }
 
-function renderHistory(items) {
-  const body = $('history-body');
-  body.innerHTML = '';
+function renderHistoryList() {
+  const list = $('hs-list');
+  const items = historyState.items;
+  list.innerHTML = '';
   if (!items.length) {
-    body.innerHTML = '<div class="muted" style="padding:6px 2px">还没有往期题目</div>';
+    list.innerHTML = '<div class="muted hs-empty">还没有往期题目</div>';
     return;
   }
   items.forEach((q, idx) => {
     const no = q.issueNo ?? idx + 1;
-    const item = document.createElement('div');
-    item.className = 'h-item';
-    const open = historyState.open.has(q.date);
-
-    const head = document.createElement('button');
-    head.className = 'h-item-head';
-    head.setAttribute('aria-expanded', String(open));
-    head.innerHTML =
-      `<span class="h-no">${no}</span>` +
-      `<span class="h-meta"><b>${escapeHtml(q.subject)}</b>` +
-      `<span class="muted h-date">${q.date} · ${TYPE_LABEL[q.type] || q.type}</span></span>` +
-      `<span class="history-arrow" aria-hidden="true">${open ? '▾' : '▸'}</span>`;
-    head.addEventListener('click', () => {
-      if (historyState.open.has(q.date)) historyState.open.delete(q.date);
-      else historyState.open.add(q.date);
-      renderHistory(items);
-    });
-    item.appendChild(head);
-
-    if (open) {
-      const detail = document.createElement('div');
-      detail.className = 'h-detail';
-      const options = q.options
-        ? Object.entries(q.options)
-            .map(([letter, text]) =>
-              `<div class="h-option${String(q.answer).includes(letter) ? ' hit' : ''}">` +
-              `<span class="ol">${letter}</span><span>${escapeHtml(text)}</span></div>`,
-            )
-            .join('')
-        : '';
-      const keyPoints = q.keyPoints?.length
-        ? '<div class="md-h md-h3">考察要点</div><ul>' +
-          q.keyPoints.map((k) => `<li>${escapeHtml(k)}</li>`).join('') +
-          '</ul>'
-        : '';
-      detail.innerHTML =
-        `<div class="h-question">${escapeHtml(q.question)}</div>` +
-        options +
-        `<div class="h-answer"><span class="h-answer-tag">答案</span>${escapeHtml(q.answerText || q.answer)}</div>` +
-        keyPoints +
-        (q.explanation
-          ? '<div class="md-h md-h3">解析</div><div class="h-explain">' + renderRich(q.explanation) + '</div>'
-          : '');
-      item.appendChild(detail);
-    }
-    body.appendChild(item);
+    const item = document.createElement('button');
+    item.className = 'hs-item' + (historyState.active === q.date ? ' active' : '');
+    item.innerHTML =
+      `<span class="hs-item-top"><span class="h-no">${no}</span>` +
+      `<b>${escapeHtml(q.subject)}</b></span>` +
+      `<span class="muted h-date">${q.date} · ${TYPE_LABEL[q.type] || q.type}</span>`;
+    item.addEventListener('click', () => openHistoryModal(q.date));
+    list.appendChild(item);
   });
 }
 
-$('history-toggle').addEventListener('click', async () => {
-  const body = $('history-body');
-  const open = body.classList.toggle('hidden');
-  $('history-toggle').setAttribute('aria-expanded', String(!open));
-  $('history-arrow').textContent = open ? '▸' : '▾';
-  if (!open) loadHistory();
+function historyDetailHtml(q) {
+  const options = q.options
+    ? Object.entries(q.options)
+        .map(([letter, text]) =>
+          `<div class="h-option${String(q.answer).includes(letter) ? ' hit' : ''}">` +
+          `<span class="ol">${letter}</span><span>${escapeHtml(text)}</span></div>`,
+        )
+        .join('')
+    : '';
+  const keyPoints = q.keyPoints?.length
+    ? '<div class="md-h md-h3">考察要点</div><ul>' +
+      q.keyPoints.map((k) => `<li>${escapeHtml(k)}</li>`).join('') +
+      '</ul>'
+    : '';
+  return (
+    `<div class="h-question">${escapeHtml(q.question)}</div>` +
+    options +
+    `<div class="h-answer"><span class="h-answer-tag">答案</span>${escapeHtml(q.answerText || q.answer)}</div>` +
+    keyPoints +
+    (q.explanation
+      ? '<div class="md-h md-h3">解析</div><div class="h-explain">' + renderRich(q.explanation) + '</div>'
+      : '')
+  );
+}
+
+function openHistoryModal(date) {
+  const q = historyState.items.find((i) => i.date === date);
+  if (!q) return;
+  historyState.active = date;
+  renderHistoryList();
+  $('hm-title').textContent = `第 ${q.issueNo} 期 · ${q.date} · ${q.subject}`;
+  $('hm-body').innerHTML = historyDetailHtml(q);
+  $('history-modal').classList.remove('hidden');
+  document.querySelector('.hs-item.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+function closeHistoryModal() {
+  $('history-modal').classList.add('hidden');
+  historyState.active = null;
+  renderHistoryList();
+}
+
+$('hm-close').addEventListener('click', closeHistoryModal);
+$('history-modal').addEventListener('click', (e) => {
+  if (e.target === $('history-modal')) closeHistoryModal(); // 点遮罩关闭
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('history-modal').classList.contains('hidden')) closeHistoryModal();
 });
 
 // ---------- 知识图谱：题库沿知识脉络动态生长 ----------
@@ -840,17 +842,13 @@ function graphHit(mx, my) {
 }
 
 function openHistoryDate(date) {
-  const body = $('history-body');
-  if (body.classList.contains('hidden')) {
+  if (!historyState.loaded) {
     historyState.pendingOpen = 'date';
     historyState.pendingDate = date;
-    $('history-toggle').click();
+    loadHistory();
     return;
   }
-  if (!historyState.loaded) return;
-  historyState.open.add(date);
-  renderHistory(historyState.items);
-  body.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  openHistoryModal(date);
 }
 
 async function loadGraph() {
@@ -951,12 +949,16 @@ async function loadGraph() {
     historyState.pendingOpen = 'date';
     historyState.pendingDate = openParam;
   }
-  if (params.get('history') === '1' || historyState.pendingOpen) $('history-toggle').click();
+  if (params.get('history') === '1') {
+    // 侧栏常显；深链时滚动让用户看到它（窄屏时它在页面底部）
+    document.querySelector('.col-history')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
   if (hashName) history.replaceState(null, '', location.pathname);
 }
 ensureName();
 loadToday();
 loadStats();
+loadHistory();
 loadGraph();
 loadLeaderboard();
 connectBoardStream();

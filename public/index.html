@@ -51,8 +51,21 @@
   </div>
 
   <main class="layout">
-    <!-- 左：题目 + 我的统计 + 排行榜 -->
-    <section class="left">
+    <!-- 左：往期回顾侧边栏 -->
+    <aside class="col-history">
+      <div class="card history-sidebar">
+        <div class="hs-head">
+          <span class="hs-title">📚 往期回顾</span>
+          <span class="muted" id="history-count"></span>
+        </div>
+        <div class="hs-list" id="hs-list">
+          <div class="muted hs-empty">加载中…</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中：题目 + 我的统计 + 知识图谱 -->
+    <section class="col-main">
       <div id="name-modal" class="modal hidden" role="dialog" aria-modal="true">
         <div class="modal-card">
           <h3>先告诉我你的名字</h3>
@@ -118,15 +131,10 @@
         </div>
       </div>
 
-      <div class="card history-card">
-        <button class="history-head" id="history-toggle" aria-expanded="false">
-          <span class="history-title">📚 往期回顾</span>
-          <span class="muted" id="history-count"></span>
-          <span class="history-arrow" id="history-arrow" aria-hidden="true">▸</span>
-        </button>
-        <div id="history-body" class="history-body hidden"></div>
-      </div>
+    </section>
 
+    <!-- 右：排行榜（进门可见）+ 康康小老师答疑 -->
+    <section class="col-side">
       <div class="card board-card">
         <div class="board-head">
           <div class="board-title">🏆 排行榜</div>
@@ -138,10 +146,7 @@
         </div>
         <div id="lb-me" class="lb-me hidden"></div>
       </div>
-    </section>
 
-    <!-- 右：康康小老师答疑 -->
-    <section class="right">
       <div class="card chat-card">
         <div class="chat-head">
           <span class="chat-avatar" aria-hidden="true">🦘</span>
@@ -164,6 +169,17 @@
   </main>
 
   <footer class="footer">每日一题 · 康康小老师 · 每天 0 点（Asia/Shanghai）更新 · Powered by Claude Agent SDK</footer>
+
+  <!-- 往期回顾详情弹层 -->
+  <div id="history-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card hm-card">
+      <div class="hm-head">
+        <div class="hm-title" id="hm-title"></div>
+        <button class="hm-close" id="hm-close" aria-label="关闭">✕</button>
+      </div>
+      <div class="hm-body" id="hm-body"></div>
+    </div>
+  </div>
   <script src="/app.js"></script>
 </body>
 </html>
