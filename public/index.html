@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
-  <title>每日一题 · 小老师</title>
+  <meta name="color-scheme" content="light" />
+  <title>每日一题 · 康康小老师</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="stamp" aria-hidden="true">题</span>
-      <span class="brand-text">每日一题<em class="brand-sub">小老师</em></span>
+      <span class="stamp" aria-hidden="true">康</span>
+      <span class="brand-text">每日一题<em class="brand-sub">康康小老师</em></span>
     </div>
     <div class="topbar-right">
       <span class="date-chip" id="today-chip"></span>
@@ -24,6 +24,12 @@
 
   <!-- ===== Hero：期号 + 实时数据带 ===== -->
   <div class="hero" role="banner">
+    <div class="hero-deco" aria-hidden="true">
+      <span style="left:5%;top:14%">📖</span>
+      <span style="left:27%;top:68%">✏️</span>
+      <span style="left:47%;top:22%">⭐</span>
+      <span style="left:58%;top:64%">🎉</span>
+    </div>
     <div class="hero-inner">
       <div class="hero-left">
         <div class="hero-issue">
@@ -74,24 +80,24 @@
             placeholder="在这里写下你的答案，尽量说清理由/要点…"></textarea>
           <div class="submit-row">
             <button id="submit-btn" class="btn primary big" disabled>提交答案</button>
-            <span class="muted submit-hint" id="submit-hint">答错可以再试，小老师会一步步提示</span>
+            <span class="muted submit-hint" id="submit-hint">答错可以再试，康康会一步步提示</span>
           </div>
           <div id="verdict" class="verdict hidden" role="status"></div>
         </div>
       </div>
 
       <div class="stats-row" id="stats-card">
-        <div class="stat-tile">
+        <div class="stat-tile t-warm">
           <div class="stat-value" id="st-today">–</div>
-          <div class="stat-label">今日作答</div>
+          <div class="stat-label">✏️ 今日作答</div>
         </div>
-        <div class="stat-tile">
+        <div class="stat-tile t-sun">
           <div class="stat-value" id="st-correct">–</div>
-          <div class="stat-label">累计答对</div>
+          <div class="stat-label">🌟 累计答对</div>
         </div>
-        <div class="stat-tile">
+        <div class="stat-tile t-mint">
           <div class="stat-value" id="st-streak">–</div>
-          <div class="stat-label">连续答对 🔥</div>
+          <div class="stat-label">🔥 连续答对</div>
         </div>
       </div>
 
@@ -106,32 +112,41 @@
         </div>
         <div id="lb-me" class="lb-me hidden"></div>
       </div>
+
+      <div class="card history-card">
+        <button class="history-head" id="history-toggle" aria-expanded="false">
+          <span class="history-title">📚 往期回顾</span>
+          <span class="muted" id="history-count"></span>
+          <span class="history-arrow" id="history-arrow" aria-hidden="true">▸</span>
+        </button>
+        <div id="history-body" class="history-body hidden"></div>
+      </div>
     </section>
 
-    <!-- 右：小老师答疑 -->
+    <!-- 右：康康小老师答疑 -->
     <section class="right">
       <div class="card chat-card">
         <div class="chat-head">
-          <span class="chat-avatar" aria-hidden="true">🧑‍🏫</span>
+          <span class="chat-avatar" aria-hidden="true">🦘</span>
           <div class="chat-head-text">
-            <div class="chat-title">小老师</div>
+            <div class="chat-title">康康小老师</div>
             <div class="muted">判对错 · 讲题 · 答疑</div>
           </div>
         </div>
         <div class="chat-log" id="chat-log">
           <div class="msg teacher first-hint">
-            你好！先做左边的题，答完我来讲解。卡住了也可以直接问我，但我不会提前剧透答案哦 😉
+            你好呀，我是康康！先做左边的题，答完我来讲解。卡住了也可以直接问我，但我不会提前剧透答案哦 😉
           </div>
         </div>
         <div class="chat-input">
-          <input id="chat-text" placeholder="向小老师提问，例如：这道题该从哪里入手？" />
+          <input id="chat-text" placeholder="向康康提问，例如：这道题该从哪里入手？" />
           <button id="chat-send" class="btn primary" aria-label="发送">发送</button>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="footer">每日一题 · 每天 0 点（Asia/Shanghai）更新 · Powered by Claude Agent SDK</footer>
+  <footer class="footer">每日一题 · 康康小老师 · 每天 0 点（Asia/Shanghai）更新 · Powered by Claude Agent SDK</footer>
   <script src="/app.js"></script>
 </body>
 </html>

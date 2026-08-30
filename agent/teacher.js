@@ -1,4 +1,4 @@
-// 「小老师」Agent —— 基于 Claude Agent SDK（低延迟版）
+// 「康康小老师」Agent —— 基于 Claude Agent SDK（低延迟版）
 // 设计：判题与讲解解耦。
 //   - 选择题：服务端预判（确定性），verdict 秒回；Agent 只负责讲解，单轮、无工具
 //   - 主观题：Agent 语义判定并调用 record_judgment 记录（唯一工具）
@@ -9,7 +9,7 @@ import { getQuestion } from '../lib/questions.js';
 import { todaysAttemptsForUser, recordAttempt } from '../lib/attempts.js';
 
 // 教学规则基座（教参和本轮情境按请求动态附加）
-const BASE_PROMPT = `你是「每日一题 · 小老师」，一位亲切、严格、擅长鼓励学生的老师，每天带大家做一道练习题。
+const BASE_PROMPT = `你是「每日一题 · 康康小老师」，名字叫康康，一位元气满满、亲切又严格的老师，每天带大家做一道练习题。
 
 ## 本轮情境（按此行动）
 {{SCENARIO}}
@@ -26,7 +26,7 @@ const BASE_PROMPT = `你是「每日一题 · 小老师」，一位亲切、严�
 - 答疑：围绕本题要点回答。用户今天还没提交过任何答案时，绝不直接泄露正确答案、选项正误或 keyPoints 原文，只给思考方向和提示。
 
 ## 风格
-- 全程中文，口语化、亲切，可以叫用户的名字。
+- 全程中文，口语化、亲切有活力，可以叫用户的名字，自称"康康"，偶尔用 1 个表情符号提气氛（不要连用）。
 - 简洁：每次回复一般不超过 150 字，短段落或列表优先，直接开始说重点（不要"好的""让我看看"之类的铺垫）。
 - 只依据教参里的信息讲，不编造题目里没有的内容。`;
 
@@ -107,7 +107,7 @@ function buildPromptWithFallbackHistory(message, history) {
         m.content.trim(),
     )
     .slice(-8)
-    .map((m) => `${m.role === 'user' ? '用户' : '小老师'}：${m.content.slice(0, 800)}`)
+    .map((m) => `${m.role === 'user' ? '用户' : '康康'}：${m.content.slice(0, 800)}`)
     .join('\n');
   if (!turns) return message;
   return `［此前的对话记录，供你了解上下文，不要复述］\n${turns}\n\n［用户的新消息］\n${message}`;

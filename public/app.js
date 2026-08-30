@@ -1,4 +1,4 @@
-// 每日一题 · 小老师 —— 前端逻辑（v2：实时榜 + 领奖台）
+// 每日一题 · 康康小老师 —— 前端逻辑（v2：实时榜 + 领奖台）
 const $ = (id) => document.getElementById(id);
 
 const state = {
@@ -160,7 +160,7 @@ function showVerdict(v) {
   el.innerHTML =
     `<div class="v-title">${v.correct ? '✅ 答对了！' : '❌ 还差一点，再试试'}</div>` +
     `<div class="v-sub">${escapeHtml(v.comment || '')}</div>` +
-    `<div class="v-note">今天第 ${v.attemptNo} 次作答 · ${v.correct ? '看看小老师的讲解 →' : '可以继续提交，也可以问小老师要提示'}</div>`;
+    `<div class="v-note">今天第 ${v.attemptNo} 次作答 · ${v.correct ? '看看康康的讲解 →' : '可以继续提交，也可以问康康要提示'}</div>`;
 
   if (v.correct) celebrate();
 
@@ -184,7 +184,7 @@ function showVerdict(v) {
 // ---------- 撒花 ----------
 function celebrate() {
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  const colors = ['#e2603a', '#e6b354', '#5cb987', '#aab3c2', '#f1ede2'];
+  const colors = ['#f4502e', '#ff8a3d', '#ffb020', '#0fa396', '#7b6cf0'];
   for (let i = 0; i < 30; i++) {
     const p = document.createElement('span');
     p.className = 'confetti-piece' + (Math.random() < 0.3 ? ' round' : '');
@@ -199,10 +199,72 @@ function celebrate() {
 }
 
 // ---------- 聊天 ----------
+// 轻量 Markdown 渲染：先整体转义，再把安全的子集（标题/表格/列表/加粗/行内代码）
+// 转成结构标签 —— 康康的回复常带表格和要点，纯文本会满屏竖线
+function mdInline(s) {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function renderRich(text) {
+  // 先整体 HTML 转义，再在转义后的文本上做安全的结构转换
+  const lines = escapeHtml(String(text ?? '')).split('\n');
+  const out = [];
+  let list = null; // 'ul' | 'ol'
+  let table = false;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const closeTable = () => { if (table) { out.push('</tbody></table>'); table = false; } };
+
+  for (const raw of lines) {
+    const l = raw.trim();
+    if (!l) { closeList(); closeTable(); continue; }
+
+    // 表格行 | a | b |
+    if (/^\|.*\|$/.test(l)) {
+      const cells = l.slice(1, -1).split('|').map((c) => c.trim());
+      if (cells.every((c) => /^:?-{3,}:?$/.test(c))) continue; // 分隔行丢弃
+      if (!table) {
+        closeList();
+        out.push('<table><tbody>');
+        table = true;
+        out.push('<tr>' + cells.map((c) => `<th>${mdInline(c)}</th>`).join('') + '</tr>');
+        continue;
+      }
+      out.push('<tr>' + cells.map((c) => `<td>${mdInline(c)}</td>`).join('') + '</tr>');
+      continue;
+    }
+    closeTable();
+
+    // 标题
+    const h = l.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { closeList(); out.push(`<div class="md-h md-h${h[1].length}">${mdInline(h[2])}</div>`); continue; }
+
+    // 列表
+    if (/^[-*•]\s+/.test(l)) {
+      if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+      out.push(`<li>${mdInline(l.replace(/^[-*•]\s+/, ''))}</li>`);
+      continue;
+    }
+    if (/^\d+[.、)]\s+/.test(l)) {
+      if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+      out.push(`<li>${mdInline(l.replace(/^\d+[.、)]\s+/, ''))}</li>`);
+      continue;
+    }
+
+    closeList();
+    out.push(`<p>${mdInline(l)}</p>`);
+  }
+  closeList();
+  closeTable();
+  return out.join('') || '<p></p>';
+}
+
 function addMsg(role, text, cls = '') {
   const div = document.createElement('div');
   div.className = `msg ${role === 'user' ? 'student' : 'teacher'} ${cls}`;
-  div.textContent = text;
+  if (role === 'user') div.textContent = text;
+  else div.innerHTML = renderRich(text);
   $('chat-log').appendChild(div);
   $('chat-log').scrollTop = $('chat-log').scrollHeight;
   return div;
@@ -281,7 +343,7 @@ async function ask(message) {
             live = addMsg('teacher', '');
           }
           text += data.t;
-          live.textContent = text;
+          live.innerHTML = renderRich(text);
           $('chat-log').scrollTop = $('chat-log').scrollHeight;
         } else if (event === 'verdict') {
           showVerdict(data);
@@ -362,11 +424,16 @@ function renderPodium(leaders) {
     const div = document.createElement('div');
     div.className = `pd p${row.rank}${state.user && row.user === state.user ? ' me' : ''}`;
     const initial = [...row.user][0] ?? '·';
+    const todayPill = row.today.correct
+      ? ' <span class="lb-today ok">今日 ✅</span>'
+      : row.today.attempted
+        ? ' <span class="lb-today wait">今日已答</span>'
+        : '';
     div.innerHTML =
       `<div class="pd-medal">${medal[row.rank]}</div>` +
       `<div class="pd-avatar">${escapeHtml(initial)}</div>` +
       `<div class="pd-name">${escapeHtml(row.user)}</div>` +
-      `<div class="pd-days">答对 <b>${row.correctDays}</b> 天 · 🔥 <b>${row.streak}</b></div>` +
+      `<div class="pd-days">答对 <b>${row.correctDays}</b> 天 · 🔥 <b>${row.streak}</b>${todayPill}</div>` +
       `<div class="pd-bar"></div>`;
     podium.appendChild(div);
   }
@@ -457,15 +524,117 @@ function escapeHtml(s) {
   );
 }
 
+// ---------- 往期回顾（历史题目 + 答案 + 解析；今日题不进历史，防剧透） ----------
+const historyState = { loaded: false, open: new Set(), pendingOpen: false, pendingDate: null };
+
+async function loadHistory(force = false) {
+  if (historyState.loaded && !force) return;
+  try {
+    const res = await fetch('/api/history');
+    if (!res.ok) return;
+    const { items } = await res.json();
+    historyState.loaded = true;
+    $('history-count').textContent = items.length ? `共 ${items.length} 期` : '';
+    renderHistory(items);
+    // 深链 open=1 / open=YYYY-MM-DD：自动展开最近一期或指定日期（分享/测试用）
+    const target =
+      historyState.pendingOpen === 'date'
+        ? historyState.pendingDate
+        : historyState.pendingOpen
+          ? items[0]?.date
+          : null;
+    historyState.pendingOpen = false;
+    historyState.pendingDate = null;
+    if (target && items.some((i) => i.date === target)) {
+      historyState.open.add(target);
+      renderHistory(items);
+    }
+  } catch { /* 静默 */ }
+}
+
+function renderHistory(items) {
+  const body = $('history-body');
+  body.innerHTML = '';
+  if (!items.length) {
+    body.innerHTML = '<div class="muted" style="padding:6px 2px">还没有往期题目</div>';
+    return;
+  }
+  items.forEach((q, idx) => {
+    const no = q.issueNo ?? idx + 1;
+    const item = document.createElement('div');
+    item.className = 'h-item';
+    const open = historyState.open.has(q.date);
+
+    const head = document.createElement('button');
+    head.className = 'h-item-head';
+    head.setAttribute('aria-expanded', String(open));
+    head.innerHTML =
+      `<span class="h-no">${no}</span>` +
+      `<span class="h-meta"><b>${escapeHtml(q.subject)}</b>` +
+      `<span class="muted h-date">${q.date} · ${TYPE_LABEL[q.type] || q.type}</span></span>` +
+      `<span class="history-arrow" aria-hidden="true">${open ? '▾' : '▸'}</span>`;
+    head.addEventListener('click', () => {
+      if (historyState.open.has(q.date)) historyState.open.delete(q.date);
+      else historyState.open.add(q.date);
+      renderHistory(items);
+    });
+    item.appendChild(head);
+
+    if (open) {
+      const detail = document.createElement('div');
+      detail.className = 'h-detail';
+      const options = q.options
+        ? Object.entries(q.options)
+            .map(([letter, text]) =>
+              `<div class="h-option${String(q.answer).includes(letter) ? ' hit' : ''}">` +
+              `<span class="ol">${letter}</span><span>${escapeHtml(text)}</span></div>`,
+            )
+            .join('')
+        : '';
+      const keyPoints = q.keyPoints?.length
+        ? '<div class="md-h md-h3">考察要点</div><ul>' +
+          q.keyPoints.map((k) => `<li>${escapeHtml(k)}</li>`).join('') +
+          '</ul>'
+        : '';
+      detail.innerHTML =
+        `<div class="h-question">${escapeHtml(q.question)}</div>` +
+        options +
+        `<div class="h-answer"><span class="h-answer-tag">答案</span>${escapeHtml(q.answerText || q.answer)}</div>` +
+        keyPoints +
+        (q.explanation
+          ? '<div class="md-h md-h3">解析</div><div class="h-explain">' + renderRich(q.explanation) + '</div>'
+          : '');
+      item.appendChild(detail);
+    }
+    body.appendChild(item);
+  });
+}
+
+$('history-toggle').addEventListener('click', async () => {
+  const body = $('history-body');
+  const open = body.classList.toggle('hidden');
+  $('history-toggle').setAttribute('aria-expanded', String(!open));
+  $('history-arrow').textContent = open ? '▸' : '▾';
+  if (!open) loadHistory();
+});
+
 // ---------- 启动 ----------
-// 支持 #name=xx 深链预设名字（便于测试/分享），随后清掉 hash
+// 支持 #name=xx / #history=1 深链（便于测试/分享），随后清掉 hash
 {
-  const hashName = new URLSearchParams(location.hash.replace(/^#/, '')).get('name');
+  const params = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const hashName = params.get('name');
   if (hashName) {
     state.user = hashName.trim().slice(0, 24);
     localStorage.setItem('quiz-user', state.user);
-    history.replaceState(null, '', location.pathname);
   }
+  const openParam = params.get('open');
+  if (openParam === '1') historyState.pendingOpen = true;
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(openParam ?? '')) {
+    historyState.pendingOpen = 'date';
+    historyState.pendingDate = openParam;
+  }
+  if (params.get('history') === '1' || historyState.pendingOpen) $('history-toggle').click();
+  if (hashName) history.replaceState(null, '', location.pathname);
 }
 ensureName();
 loadToday();

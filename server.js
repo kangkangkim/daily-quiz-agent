@@ -1,4 +1,4 @@
-// 每日一题 · 小老师 —— Web 服务
+// 每日一题 · 康康小老师 —— Web 服务
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,6 +103,33 @@ app.get('/api/question/:date', (req, res) => {
   res.json({ date: q.date, question: publicView(q) });
 });
 
+// ---------- 往期回顾（今天之前的题目带答案与解析；今日题不进历史，防剧透） ----------
+app.get('/api/history', (_req, res) => {
+  const today = todayStr();
+  const items = listQuestionDates()
+    .filter((d) => d < today)
+    .sort() // 升序：下标+1 即真实期号
+    .map((d, i) => {
+      const q = getQuestion(d);
+      if (!q) return null;
+      return {
+        issueNo: i + 1,
+        date: q.date,
+        subject: q.subject,
+        type: q.type,
+        question: q.question,
+        options: q.options ?? null,
+        answer: q.answer,
+        answerText: q.answerText ?? '',
+        keyPoints: q.keyPoints ?? [],
+        explanation: q.explanation ?? '',
+      };
+    })
+    .filter(Boolean)
+    .reverse(); // 最新在前
+  res.json({ items });
+});
+
 // ---------- 统计 ----------
 app.get('/api/stats', (req, res) => {
   const user = cleanName(req.query.user);
@@ -120,7 +147,7 @@ app.get('/api/leaderboard', (req, res) => {
   res.json({ ...board, ...todaySnapshot(), me });
 });
 
-// ---------- 小老师聊天（SSE 流式） ----------
+// ---------- 康康小老师聊天（SSE 流式） ----------
 app.post('/api/chat', async (req, res) => {
   const user = cleanName(req.body?.user);
   const message = String(req.body?.message ?? '').trim();
@@ -185,7 +212,7 @@ app.post('/api/chat', async (req, res) => {
     send('done', { ok: true });
   } catch (err) {
     console.error('[chat] agent error:', err?.message ?? err);
-    send('error', { message: '小老师暂时开小差了，请稍后再试' });
+    send('error', { message: '康康小老师暂时开小差了，请稍后再试' });
   }
   res.end();
 });
@@ -218,6 +245,6 @@ app.post('/api/admin/question', (req, res) => {
 app.get('/api/health', (req, res) => res.json({ ok: true, date: todayStr() }));
 
 app.listen(PORT, () => {
-  console.log(`每日一题 · 小老师 已启动: http://localhost:${PORT}`);
+  console.log(`每日一题 · 康康小老师 已启动: http://localhost:${PORT}`);
   console.log(`管理页（出题）: http://localhost:${PORT}/admin.html`);
 });
